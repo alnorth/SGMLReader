@@ -793,9 +793,23 @@ namespace Sgml {
             }
 
             // NOTE (steveb): we need to use ConvertFromUtf32 to allow for extended numeric encodings.
-			// This isn't available on .NET 1.1 so hopefully this is OK.
-            return Convert.ToChar(v).ToString();
+			// This isn't available on .NET 1.1 so we use the version from Mono
+			return ConvertFromUtf32(v);
         }
+
+		// Taken from Mono - https://github.com/mono/mono/blob/4035ecdd456aa205ea7e345ed45474839bb78759/mcs/class/corlib/System/Char.cs
+		private static string ConvertFromUtf32(int utf32) {
+			if (utf32 < 0 || utf32 > 0x10FFFF)
+				throw new ArgumentOutOfRangeException ("utf32", "The argument must be from 0 to 0x10FFFF.");
+			if (0xD800 <= utf32 && utf32 <= 0xDFFF)
+				throw new ArgumentOutOfRangeException ("utf32", "The argument must not be in surrogate pair range.");
+			if (utf32 < 0x10000)
+				return new string ((char) utf32, 1);
+			utf32 -= 0x10000;
+			return new string (
+				new char [] {(char) ((utf32 >> 10) + 0xD800),
+								(char) (utf32 % 0x0400 + 0xDC00)});
+		}
 
         static int[] CtrlMap = new int[] {
                                              // This is the windows-1252 mapping of the code points 0x80 through 0x9f.
