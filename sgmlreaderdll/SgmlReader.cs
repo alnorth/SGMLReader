@@ -12,8 +12,7 @@
 */
 
 using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
+using System.Collections;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
@@ -85,7 +84,6 @@ namespace Sgml
         /// <summary>
         /// The size (capacity) of the stack.
         /// </summary>
-        [SuppressMessage("Microsoft.Performance", "CA1811", Justification = "Kept for potential future usage.")]
         public int Size
         {
             get
@@ -153,7 +151,6 @@ namespace Sgml
         /// Remove a specific item from the stack.
         /// </summary>
         /// <param name="i">The index of the item to remove.</param>
-        [SuppressMessage("Microsoft.Performance", "CA1811", Justification = "Kept for potential future usage.")]
         public void RemoveAt(int i)
         {
             this.m_items[i] = null;
@@ -248,10 +245,12 @@ namespace Sgml
             // check for duplicates!
             for (int i = 0, n = this.attributes.Count; i < n; i++) {
                 a = (Attribute)this.attributes[i];
-                if (string.Equals(a.Name, name, caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
-                {
-                    return null;
-                }
+				if(caseInsensitive && string.Equals(a.Name.ToUpper(CultureInfo.InvariantCulture), name.ToUpper(CultureInfo.InvariantCulture))) {
+					return null;
+				} 
+				else if(!caseInsensitive && string.Equals(a, name)) {
+					return null;
+				}
             }
             // This code makes use of the high water mark for attribute objects,
             // and reuses exisint Attribute objects to avoid memory allocation.
@@ -264,13 +263,12 @@ namespace Sgml
             return a;
         }
 
-        [SuppressMessage("Microsoft.Performance", "CA1811", Justification = "Kept for potential future usage.")]
         public void RemoveAttribute(string name)
         {
             for (int i = 0, n = this.attributes.Count; i < n; i++)
             {
                 Attribute a  = (Attribute)this.attributes[i];
-                if (string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(a.Name.ToUpper(CultureInfo.InvariantCulture), name.ToUpper(CultureInfo.InvariantCulture)))
                 {
                     this.attributes.RemoveAt(i);
                     return;
@@ -294,7 +292,7 @@ namespace Sgml
         public int GetAttribute(string name) {
             for (int i = 0, n = this.attributes.Count; i < n; i++) {
                 Attribute a = (Attribute)this.attributes[i];
-                if (string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase)) {
+                if (string.Equals(a.Name.ToUpper(CultureInfo.InvariantCulture), name.ToUpper(CultureInfo.InvariantCulture))) {
                     return i;
                 }
             }
@@ -336,8 +334,6 @@ namespace Sgml
         /// <summary>
         /// The value returned when a namespace is queried and none has been specified.
         /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA1705", Justification = "SgmlReader's standards for constants are different to Microsoft's and in line with older C++ style constants naming conventions.  Visually, constants using this style are more easily identifiable as such.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA1707", Justification = "SgmlReader's standards for constants are different to Microsoft's and in line with older C++ style constants naming conventions.  Visually, constants using this style are more easily identifiable as such.")]
         public const string UNDEFINED_NAMESPACE = "#unknown";
 
         private SgmlDtd m_dtd;
@@ -377,7 +373,7 @@ namespace Sgml
         private CaseFolding m_folding = CaseFolding.None;
         private bool m_stripDocType = true;
         //private string m_startTag;
-        private Dictionary<string, string> unknownNamespaces = new Dictionary<string,string>();
+        private Hashtable unknownNamespaces = new Hashtable();
 
         /// <summary>
         /// Initialises a new instance of the SgmlReader class.
@@ -419,7 +415,7 @@ namespace Sgml
         {
             if (this.m_dtd == null && !this.m_ignoreDtd)
             {
-                if (string.IsNullOrEmpty(this.m_syslit))
+                if (this.m_syslit == null || this.m_syslit == String.Empty)
                 {
                     if (this.m_docType != null && StringUtilities.EqualsIgnoreCase(this.m_docType, "html"))
                     {
@@ -456,10 +452,10 @@ namespace Sgml
                 switch(this.CaseFolding)
                 {
                 case CaseFolding.ToUpper:
-                    this.m_rootElementName = this.m_dtd.Name.ToUpperInvariant();
+                    this.m_rootElementName = this.m_dtd.Name.ToUpper(CultureInfo.InvariantCulture);
                     break;
                 case CaseFolding.ToLower:
-                    this.m_rootElementName = this.m_dtd.Name.ToLowerInvariant();
+                    this.m_rootElementName = this.m_dtd.Name.ToLower(CultureInfo.InvariantCulture);
                     break;
                 default:
                     this.m_rootElementName = this.m_dtd.Name;
@@ -861,13 +857,12 @@ namespace Sgml
         /// <remarks>
         /// If not positioned on a node or attribute, <see cref="UNDEFINED_NAMESPACE"/> is returned.
         /// </remarks>
-        [SuppressMessage("Microsoft.Performance", "CA1820", Justification="Cannot use IsNullOrEmpty in a switch statement and swapping the elegance of switch for a load of 'if's is not worth it.")]
         public override string NamespaceURI
         {
             get
             {
                 // SGML has no namespaces, unless this turned out to be an xmlns attribute.
-                if (this.m_state == State.Attr && string.Equals(this.m_a.Name, "xmlns", StringComparison.OrdinalIgnoreCase))
+                if (this.m_state == State.Attr && string.Equals(this.m_a.Name.ToUpper(CultureInfo.InvariantCulture), "XMLNS"))
                 {
                     return "http://www.w3.org/2000/xmlns/";
                 }
@@ -929,7 +924,8 @@ namespace Sgml
                         }
 
                         // check if we've seen this prefix before
-                        if(!unknownNamespaces.TryGetValue(prefix, out value)) {
+						value = (string) unknownNamespaces[prefix];
+                        if(value == null || value == String.Empty) {
                             if(unknownNamespaces.Count > 0) {
                                 value = UNDEFINED_NAMESPACE + unknownNamespaces.Count.ToString();
                             } else {
@@ -960,7 +956,7 @@ namespace Sgml
                         result = string.Empty;
                     }
                 }
-                return result ?? string.Empty;
+                return result != null ? result : string.Empty;
             }
         }
 
@@ -1230,7 +1226,6 @@ namespace Sgml
         /// <param name="name">The local name of the attribute.</param>
         /// <param name="namespaceURI">The namespace URI of the attribute.</param>
         /// <returns>The value of the specified attribute. If the attribute is not found, a null reference (Nothing in Visual Basic) is returned. This method does not move the reader.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1023", Justification = "This design is that of Microsoft's XmlReader class and overriding its method is merely continuing the same design.")]
         public override string this[string name, string namespaceURI]
         { 
             get
@@ -1362,7 +1357,6 @@ namespace Sgml
         /// Returns the encoding of the current entity.
         /// </summary>
         /// <returns>The encoding of the current entity.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1024", Justification = "This method to get the encoding does not simply read a value, but potentially causes significant processing of the input stream.")]
         public Encoding GetEncoding()
         {
             if (this.m_current == null)
@@ -1444,7 +1438,7 @@ namespace Sgml
                         }
                         break;
                     case State.EndTag:
-                        if (string.Equals(this.m_endTag, this.m_node.Name, StringComparison.OrdinalIgnoreCase))
+                        if (string.Equals(this.m_endTag.ToUpper(CultureInfo.InvariantCulture), this.m_node.Name.ToUpper(CultureInfo.InvariantCulture)))
                         {
                             Pop(); // we're done!
                             this.m_state = State.Markup;
@@ -1528,7 +1522,7 @@ namespace Sgml
             {
                 m_foundRoot = true;
                 if (this.IsHtml && (this.NodeType != XmlNodeType.Element ||
-                    !string.Equals(this.LocalName, "html", StringComparison.OrdinalIgnoreCase)))
+                    !string.Equals(this.LocalName.ToUpper(CultureInfo.InvariantCulture), "HTML")))
                 {
                     // Simulate an HTML root element!
                     this.m_node.CurrentState = this.m_state;
@@ -1605,7 +1599,7 @@ namespace Sgml
                 else
                 {
                     string name = this.m_current.ScanToken(this.m_sb, SgmlReader.declterm, false);
-                    if (string.Equals(name, "DOCTYPE", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(name.ToUpper(CultureInfo.InvariantCulture), "DOCTYPE"))
                     {
                         ParseDocType();
 
@@ -1655,10 +1649,10 @@ namespace Sgml
             switch (this.m_folding)
             {
                 case CaseFolding.ToUpper:
-                    name = name.ToUpperInvariant();
+                    name = name.ToUpper(CultureInfo.InvariantCulture);
                     break;
                 case CaseFolding.ToLower:
-                    name = name.ToLowerInvariant();
+                    name = name.ToLower(CultureInfo.InvariantCulture);
                     break;
             }
             return name;
@@ -1729,10 +1723,10 @@ namespace Sgml
 
                 string aname = ScanName(SgmlReader.aterm);
                 ch = this.m_current.SkipWhitespace();
-                if (string.Equals(aname, ",", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(aname, "=", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(aname, ":", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(aname, ";", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(aname, ",") ||
+                    string.Equals(aname, "=") ||
+                    string.Equals(aname, ":") ||
+                    string.Equals(aname, ";"))
                 {
                     continue;
                 }
@@ -1761,7 +1755,7 @@ namespace Sgml
 
                 if (ValidAttributeName(aname))
                 {
-                    Attribute a = n.AddAttribute(aname, value ?? aname, quote, this.m_folding == CaseFolding.None);
+                    Attribute a = n.AddAttribute(aname, value != null ? value : aname, quote, this.m_folding == CaseFolding.None);
                     if (a == null)
                     {
                         Log("Duplicate attribute '{0}' ignored", aname);
@@ -1822,7 +1816,7 @@ namespace Sgml
             for (int i = this.m_stack.Count - 1; i > 0; i--)
             {
                 Node n = (Node)this.m_stack[i];
-                if (string.Equals(n.Name, name, caseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                if (string.Equals(n.Name.ToUpper(CultureInfo.InvariantCulture), name.ToUpper(CultureInfo.InvariantCulture)) || caseInsensitive && string.Equals(n.Name, name))
                 {
                     this.m_endTag = n.Name;
                     return true;
@@ -1895,7 +1889,7 @@ namespace Sgml
                 m_current.ScanToEnd(null, "CDATA", ">");
                 return false;
             }
-            else if (!string.Equals(name, "CDATA", StringComparison.OrdinalIgnoreCase))
+            else if (!string.Equals(name.ToUpper(CultureInfo.InvariantCulture), "CDATA"))
             {
                 Log("Expecting CDATA but found '{0}'", name);
                 m_current.ScanToEnd(null, "CDATA", ">");
@@ -1934,7 +1928,7 @@ namespace Sgml
                 if (ch != '[')
                 {
                     string token = this.m_current.ScanToken(this.m_sb, SgmlReader.dtterm, false);
-                    if (string.Equals(token, "PUBLIC", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(token.ToUpper(CultureInfo.InvariantCulture), "PUBLIC"))
                     {
                         ch = this.m_current.SkipWhitespace();
                         if (ch == '\"' || ch == '\'')
@@ -1943,7 +1937,7 @@ namespace Sgml
                             this.m_node.AddAttribute(token, pubid, ch, this.m_folding == CaseFolding.None);
                         }
                     } 
-                    else if (!string.Equals(token, "SYSTEM", StringComparison.OrdinalIgnoreCase))
+                    else if (!string.Equals(token.ToUpper(CultureInfo.InvariantCulture), "SYSTEM"))
                     {
                         Log("Unexpected token in DOCTYPE '{0}'", token);
                         this.m_current.ScanToEnd(null, "DOCTYPE", ">");
@@ -1971,7 +1965,7 @@ namespace Sgml
                     this.m_current.ScanToEnd(null, "DOCTYPE", ">");
                 }
 
-                if (this.m_dtd != null && !string.Equals(this.m_dtd.Name, name, StringComparison.OrdinalIgnoreCase))
+                if (this.m_dtd != null && !string.Equals(this.m_dtd.Name.ToUpper(CultureInfo.InvariantCulture), name.ToUpper(CultureInfo.InvariantCulture)))
                 {
                     throw new InvalidOperationException("DTD does not match document type");
                 }
@@ -2010,7 +2004,7 @@ namespace Sgml
             }
 
             // skip xml declarations, since these are generated in the output instead.
-            if (!string.Equals(name, "xml", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(name.ToUpper(CultureInfo.InvariantCulture), "XML"))
             {
                 Push(name, XmlNodeType.ProcessingInstruction, value);
                 return true;
@@ -2198,9 +2192,9 @@ namespace Sgml
                     {
                         // see if this is the end tag for this CDATA node.
                         string temp = this.m_sb.ToString();
-                        if (ParseEndTag() && string.Equals(this.m_endTag, this.m_node.Name, StringComparison.OrdinalIgnoreCase))
+                        if (ParseEndTag() && string.Equals(this.m_endTag.ToUpper(CultureInfo.InvariantCulture), this.m_node.Name.ToUpper(CultureInfo.InvariantCulture)))
                         {
-                            if (ws || string.IsNullOrEmpty(temp))
+                            if (ws || temp == null || temp == String.Empty)
                             {
                                 // we are done!
                                 return true;
@@ -2285,7 +2279,7 @@ namespace Sgml
                     ch = this.m_current.ReadChar();
                 }
                 string name = this.m_name.ToString();
-                if (this.m_dtd != null && !string.IsNullOrEmpty(name))
+                if (this.m_dtd != null && !(name == null || name == String.Empty))
                 {
                     Entity e = (Entity)this.m_dtd.FindEntity(name);
                     if (e != null)
@@ -2537,7 +2531,13 @@ namespace Sgml
         {
             try
             {
-                XmlConvert.VerifyNMTOKEN(name);
+				// I've taken this behaviour from Mono - https://github.com/mono/mono/blob/a4c46a87cfcea02ab73579c998ed4e67e858b3cf/mcs/class/System.XML/System.Xml/XmlConvert.cs
+				if (name == null)
+					throw new ArgumentNullException("name");
+
+				if (!XmlChar.IsNmToken(name))
+					throw new XmlException("'" + name + "' is not a valid XML NMTOKEN");
+
                 int index = name.IndexOf(':');
                 if (index >= 0)
                 {
@@ -2574,7 +2574,7 @@ namespace Sgml
                 // See if this element is allowed inside the current element.
                 // If it isn't, then auto-close elements until we find one
                 // that it is allowed to be in.                                  
-                string name = node.Name.ToUpperInvariant(); // DTD is in upper case
+                string name = node.Name.ToUpper(CultureInfo.InvariantCulture); // DTD is in upper case
                 int i = 0;
                 int top = this.m_stack.Count - 2;
                 if (node.DtdType != null) { 
@@ -2588,9 +2588,9 @@ namespace Sgml
                         ElementDecl f = n.DtdType;
                         if (f != null)
                         {
-                            if ((i == 2) && string.Equals(f.Name, "BODY", StringComparison.OrdinalIgnoreCase)) // NOTE (steveb): never close the BODY tag too early
+                            if ((i == 2) && string.Equals(f.Name.ToUpper(CultureInfo.InvariantCulture), "BODY")) // NOTE (steveb): never close the BODY tag too early
                                 break;
-                            else if (string.Equals(f.Name, this.m_dtd.Name, StringComparison.OrdinalIgnoreCase))
+                            else if (string.Equals(f.Name.ToUpper(CultureInfo.InvariantCulture), this.m_dtd.Name.ToUpper(CultureInfo.InvariantCulture)))
                                 break; // can't pop the root element.
                             else if (f.CanContain(name, this.m_dtd))
                             {
@@ -2622,7 +2622,7 @@ namespace Sgml
                 else if (i < top)
                 {
                     Node n = (Node)this.m_stack[top];
-                    if (i == top - 1 && string.Equals(name, n.Name, StringComparison.OrdinalIgnoreCase))
+                    if (i == top - 1 && string.Equals(name.ToUpper(CultureInfo.InvariantCulture), n.Name.ToUpper(CultureInfo.InvariantCulture)))
                     {
                         // e.g. p not allowed inside p, not an interesting error.
                     }
@@ -2646,5 +2646,380 @@ namespace Sgml
                 }
             }
         }
+
+		// XmlChar taken from Mono - https://github.com/mono/mono/blob/a4c46a87cfcea02ab73579c998ed4e67e858b3cf/mcs/class/System.XML/System.Xml/XmlChar.cs
+
+		// -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*-
+		//
+		// System.Xml.XmlChar.cs
+		//
+		// Author:
+		//   Jason Diamond (jason@injektilo.org)
+		//
+		// (C) 2001 Jason Diamond  http://injektilo.org/
+		//
+
+		//
+		// Permission is hereby granted, free of charge, to any person obtaining
+		// a copy of this software and associated documentation files (the
+		// "Software"), to deal in the Software without restriction, including
+		// without limitation the rights to use, copy, modify, merge, publish,
+		// distribute, sublicense, and/or sell copies of the Software, and to
+		// permit persons to whom the Software is furnished to do so, subject to
+		// the following conditions:
+		// 
+		// The above copyright notice and this permission notice shall be
+		// included in all copies or substantial portions of the Software.
+		// 
+		// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+		// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+		// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+		// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+		// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+		// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+		// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+		//
+		internal class XmlChar
+		{
+			public static readonly char [] WhitespaceChars = new char [] {' ', '\n', '\t', '\r'};
+
+			public static bool IsWhitespace (int ch)
+			{
+				return ch == 0x20 || ch == 0x9 || ch == 0xD || ch == 0xA;
+			}
+
+			public static bool IsWhitespace (string str)
+			{
+				for (int i = 0; i < str.Length; i++)
+					if (!IsWhitespace (str [i])) return false;
+
+				return true;
+			}
+
+			public static bool IsFirstNameChar (int ch)
+			{
+				bool result = false;
+
+				if (ch >= 0 && ch <= 0xFFFF)
+				{
+					result = (nameBitmap[(firstNamePages[ch >> 8] << 3) + ((ch & 0xFF) >> 5)] & (1 << (ch & 0x1F))) != 0;
+				}
+
+				return result;
+			}
+
+			public static bool IsValid (int ch)
+			{
+				return !IsInvalid (ch);
+			}
+
+			public static bool IsInvalid (int ch)
+			{
+				switch (ch) 
+				{
+					case 9:
+					case 10:
+					case 13:
+						return false;
+				}
+				if (ch < 32)
+					return true;
+				if (ch < 0xD800)
+					return false;
+				if (ch < 0xE000)
+					return true;
+				if (ch < 0xFFFE)
+					return false;
+				if (ch < 0x10000)
+					return true;
+				if (ch < 0x110000)
+					return false;
+				else
+					return true;
+			}
+
+			public static bool IsNameChar (int ch)
+			{
+				bool result = false;
+
+				if (ch >= 0 && ch <= 0xFFFF)
+				{
+					result = (nameBitmap[(namePages[ch >> 8] << 3) + ((ch & 0xFF) >> 5)] & (1 << (ch & 0x1F))) != 0;
+				}
+
+				return result;
+			}
+
+			public static bool IsNCNameChar (int ch)
+			{
+				bool result = false;
+
+				if (ch >= 0 && ch <= 0xFFFF && ch != ':')
+				{
+					result = (nameBitmap[(namePages[ch >> 8] << 3) + ((ch & 0xFF) >> 5)] & (1 << (ch & 0x1F))) != 0;
+				}
+
+				return result;
+			}
+
+			public static bool IsName (string str)
+			{
+				if (str.Length == 0)
+					return false;
+				if (!IsFirstNameChar (str [0]))
+					return false;
+				for (int i = 1; i < str.Length; i++)
+					if (!IsNameChar (str [i]))
+						return false;
+				return true;
+			}
+
+			public static bool IsNCName (string str)
+			{
+				if (str.Length == 0)
+					return false;
+				if (!IsFirstNameChar (str [0]))
+					return false;
+				for (int i = 0; i < str.Length; i++)
+					if (!IsNCNameChar (str [i]))
+						return false;
+				return true;
+			}
+
+			public static bool IsNmToken (string str)
+			{
+				if (str.Length == 0)
+					return false;
+				for (int i = 0; i < str.Length; i++)
+					if (!IsNameChar (str [i]))
+						return false;
+				return true;
+			}
+
+			public static bool IsPubidChar (int ch)
+			{
+				return (IsWhitespace(ch) && ch != '\t') | ('a' <= ch && ch <= 'z') | ('A' <= ch && ch <= 'Z') | ('0' <= ch && ch <= '9') | "-'()+,./:=?;!*#@$_%".IndexOf((char)ch) >= 0;
+			}
+
+			public static bool IsPubid (string str)
+			{
+				for (int i = 0; i < str.Length; i++)
+					if (!IsPubidChar (str [i]))
+						return false;
+				return true;
+			}
+
+			// encodings (copied from XmlConstructs.cs)
+
+			/// <summary>
+			/// Returns true if the encoding name is a valid IANA encoding.
+			/// This method does not verify that there is a decoder available
+			/// for this encoding, only that the characters are valid for an
+			/// IANA encoding name.
+			/// </summary>
+			/// <param name="ianaEncoding">The encoding to check.</param>
+			/// <returns></returns>
+			public static bool IsValidIANAEncoding (String ianaEncoding) 
+			{
+				if (ianaEncoding != null) 
+				{
+					int length = ianaEncoding.Length;
+					if (length > 0) 
+					{
+						char c = ianaEncoding[0];
+						if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) 
+						{
+							for (int i = 1; i < length; i++) 
+							{
+								c = ianaEncoding[i];
+								if ((c < 'A' || c > 'Z') && (c < 'a' || c > 'z') &&
+									(c < '0' || c > '9') && c != '.' && c != '_' &&
+									c != '-') 
+								{
+									return false;
+								}
+							}
+							return true;
+						}
+					}
+				}
+				return false;
+			}
+
+			public static int GetPredefinedEntity (string name)
+			{
+				switch (name) 
+				{
+					case "amp":
+						return '&';
+					case "lt":
+						return '<';
+					case "gt":
+						return '>';
+					case "quot":
+						return '"';
+					case "apos":
+						return '\'';
+					default:
+						return -1;
+				}
+			}
+
+			static readonly byte [] firstNamePages =
+			{
+				0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00,
+				0x00, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+				0x10, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x13,
+				0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x15, 0x16, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x17,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x18,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+			};
+
+			static readonly byte [] namePages =
+			{
+				0x19, 0x03, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x00,
+				0x00, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25,
+				0x10, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x13,
+				0x26, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x27, 0x16, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x17,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+				0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x18,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+			};
+
+			static readonly uint [] nameBitmap =
+			{
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+				0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+				0x00000000, 0x04000000, 0x87FFFFFE, 0x07FFFFFE,
+				0x00000000, 0x00000000, 0xFF7FFFFF, 0xFF7FFFFF,
+				0xFFFFFFFF, 0x7FF3FFFF, 0xFFFFFDFE, 0x7FFFFFFF,
+				0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFE00F, 0xFC31FFFF,
+				0x00FFFFFF, 0x00000000, 0xFFFF0000, 0xFFFFFFFF,
+				0xFFFFFFFF, 0xF80001FF, 0x00000003, 0x00000000,
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0xFFFFD740, 0xFFFFFFFB, 0x547F7FFF, 0x000FFFFD,
+				0xFFFFDFFE, 0xFFFFFFFF, 0xDFFEFFFF, 0xFFFFFFFF,
+				0xFFFF0003, 0xFFFFFFFF, 0xFFFF199F, 0x033FCFFF,
+				0x00000000, 0xFFFE0000, 0x027FFFFF, 0xFFFFFFFE,
+				0x0000007F, 0x00000000, 0xFFFF0000, 0x000707FF,
+				0x00000000, 0x07FFFFFE, 0x000007FE, 0xFFFE0000,
+				0xFFFFFFFF, 0x7CFFFFFF, 0x002F7FFF, 0x00000060,
+				0xFFFFFFE0, 0x23FFFFFF, 0xFF000000, 0x00000003,
+				0xFFF99FE0, 0x03C5FDFF, 0xB0000000, 0x00030003,
+				0xFFF987E0, 0x036DFDFF, 0x5E000000, 0x001C0000,
+				0xFFFBAFE0, 0x23EDFDFF, 0x00000000, 0x00000001,
+				0xFFF99FE0, 0x23CDFDFF, 0xB0000000, 0x00000003,
+				0xD63DC7E0, 0x03BFC718, 0x00000000, 0x00000000,
+				0xFFFDDFE0, 0x03EFFDFF, 0x00000000, 0x00000003,
+				0xFFFDDFE0, 0x03EFFDFF, 0x40000000, 0x00000003,
+				0xFFFDDFE0, 0x03FFFDFF, 0x00000000, 0x00000003,
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0xFFFFFFFE, 0x000D7FFF, 0x0000003F, 0x00000000,
+				0xFEF02596, 0x200D6CAE, 0x0000001F, 0x00000000,
+				0x00000000, 0x00000000, 0xFFFFFEFF, 0x000003FF,
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0x00000000, 0xFFFFFFFF, 0xFFFF003F, 0x007FFFFF,
+				0x0007DAED, 0x50000000, 0x82315001, 0x002C62AB,
+				0x40000000, 0xF580C900, 0x00000007, 0x02010800,
+				0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+				0x0FFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0x03FFFFFF,
+				0x3F3FFFFF, 0xFFFFFFFF, 0xAAFF3F3F, 0x3FFFFFFF,
+				0xFFFFFFFF, 0x5FDFFFFF, 0x0FCF1FDC, 0x1FDC1FFF,
+				0x00000000, 0x00004C40, 0x00000000, 0x00000000,
+				0x00000007, 0x00000000, 0x00000000, 0x00000000,
+				0x00000080, 0x000003FE, 0xFFFFFFFE, 0xFFFFFFFF,
+				0x001FFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0x07FFFFFF,
+				0xFFFFFFE0, 0x00001FFF, 0x00000000, 0x00000000,
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+				0xFFFFFFFF, 0x0000003F, 0x00000000, 0x00000000,
+				0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+				0xFFFFFFFF, 0x0000000F, 0x00000000, 0x00000000,
+				0x00000000, 0x07FF6000, 0x87FFFFFE, 0x07FFFFFE,
+				0x00000000, 0x00800000, 0xFF7FFFFF, 0xFF7FFFFF,
+				0x00FFFFFF, 0x00000000, 0xFFFF0000, 0xFFFFFFFF,
+				0xFFFFFFFF, 0xF80001FF, 0x00030003, 0x00000000,
+				0xFFFFFFFF, 0xFFFFFFFF, 0x0000003F, 0x00000003,
+				0xFFFFD7C0, 0xFFFFFFFB, 0x547F7FFF, 0x000FFFFD,
+				0xFFFFDFFE, 0xFFFFFFFF, 0xDFFEFFFF, 0xFFFFFFFF,
+				0xFFFF007B, 0xFFFFFFFF, 0xFFFF199F, 0x033FCFFF,
+				0x00000000, 0xFFFE0000, 0x027FFFFF, 0xFFFFFFFE,
+				0xFFFE007F, 0xBBFFFFFB, 0xFFFF0016, 0x000707FF,
+				0x00000000, 0x07FFFFFE, 0x0007FFFF, 0xFFFF03FF,
+				0xFFFFFFFF, 0x7CFFFFFF, 0xFFEF7FFF, 0x03FF3DFF,
+				0xFFFFFFEE, 0xF3FFFFFF, 0xFF1E3FFF, 0x0000FFCF,
+				0xFFF99FEE, 0xD3C5FDFF, 0xB080399F, 0x0003FFCF,
+				0xFFF987E4, 0xD36DFDFF, 0x5E003987, 0x001FFFC0,
+				0xFFFBAFEE, 0xF3EDFDFF, 0x00003BBF, 0x0000FFC1,
+				0xFFF99FEE, 0xF3CDFDFF, 0xB0C0398F, 0x0000FFC3,
+				0xD63DC7EC, 0xC3BFC718, 0x00803DC7, 0x0000FF80,
+				0xFFFDDFEE, 0xC3EFFDFF, 0x00603DDF, 0x0000FFC3,
+				0xFFFDDFEC, 0xC3EFFDFF, 0x40603DDF, 0x0000FFC3,
+				0xFFFDDFEC, 0xC3FFFDFF, 0x00803DCF, 0x0000FFC3,
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0xFFFFFFFE, 0x07FF7FFF, 0x03FF7FFF, 0x00000000,
+				0xFEF02596, 0x3BFF6CAE, 0x03FF3F5F, 0x00000000,
+				0x03000000, 0xC2A003FF, 0xFFFFFEFF, 0xFFFE03FF,
+				0xFEBF0FDF, 0x02FE3FFF, 0x00000000, 0x00000000,
+				0x00000000, 0x00000000, 0x00000000, 0x00000000,
+				0x00000000, 0x00000000, 0x1FFF0000, 0x00000002,
+				0x000000A0, 0x003EFFFE, 0xFFFFFFFE, 0xFFFFFFFF,
+				0x661FFFFF, 0xFFFFFFFE, 0xFFFFFFFF, 0x77FFFFFF
+			};
+		}
     }
 }

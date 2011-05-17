@@ -87,7 +87,6 @@ namespace Sgml
                 RunTest(baseUri, Path.Combine("..", Path.Combine("..", "ofx.suite")));
             }
             RegressionTest1();
-            RegressionTest2();
             return;       
         }
 
@@ -608,25 +607,6 @@ namespace Sgml
                 if (r.MoveToElement()) {
                     Trace.WriteLine(r.ReadInnerXml());
                 }
-            }
-        }
-
-        void RegressionTest2() {
-
-            // test setup
-            var source = "&test";
-            var reader = new SgmlReader();
-            reader.DocType = "HTML";
-            reader.WhitespaceHandling = WhitespaceHandling.All;
-            reader.StripDocType = true;
-            reader.InputStream = new StringReader(source);
-            reader.CaseFolding = CaseFolding.ToLower;
-
-            // test
-            var element = System.Xml.Linq.XElement.Load(reader);
-            string value = element.Value;
-            if(!string.IsNullOrEmpty(value) && value[value.Length - 1] == (char)65535) {
-                Console.Error.WriteLine("ERROR: sgml reader added 65535 to input end");
             }
         }
 	}

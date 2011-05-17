@@ -6,8 +6,6 @@
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Net;
@@ -110,19 +108,16 @@ namespace Sgml {
         /// <summary>
         /// CDATA text literals.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         CDATA,
 
         /// <summary>
         /// SDATA entities.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         SDATA,
 
         /// <summary>
         /// The contents of a Processing Instruction.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         PI
     };
 
@@ -134,7 +129,6 @@ namespace Sgml {
         /// <summary>
         /// The character indicating End Of File.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "The capitalisation is correct since EOF is an acronym.")]
         public const char EOF = (char)65535;
 
         private string m_proxy;
@@ -199,7 +193,7 @@ namespace Sgml {
             m_stm = stm;
             m_resolvedUri = baseUri;
             m_proxy = proxy;
-            m_isHtml = string.Equals(name, "html", StringComparison.OrdinalIgnoreCase);
+            m_isHtml = string.Equals(name.ToUpper(CultureInfo.InvariantCulture), "HTML");
         }
 
         /// <summary>
@@ -466,11 +460,11 @@ namespace Sgml {
 
                         WebResponse resp = wr.GetResponse();
                         Uri actual = resp.ResponseUri;
-                        if (!string.Equals(actual.AbsoluteUri, this.m_resolvedUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
+                        if (!string.Equals(actual.AbsoluteUri.ToUpper(CultureInfo.InvariantCulture), this.m_resolvedUri.AbsoluteUri.ToUpper(CultureInfo.InvariantCulture)))
                         {
                             this.m_resolvedUri = actual;
                         }
-                        string contentType = resp.ContentType.ToLowerInvariant();
+                        string contentType = resp.ContentType.ToLower(CultureInfo.InvariantCulture);
                         string mimeType = contentType;
                         int i = contentType.IndexOf(';');
                         if (i >= 0)
@@ -798,8 +792,9 @@ namespace Sgml {
                 return Convert.ToChar(unicode).ToString();
             }
 
-            // NOTE (steveb): we need to use ConvertFromUtf32 to allow for extended numeric encodings
-            return char.ConvertFromUtf32(v);
+            // NOTE (steveb): we need to use ConvertFromUtf32 to allow for extended numeric encodings.
+			// This isn't available on .NET 1.1 so hopefully this is OK.
+            return Convert.ToChar(v).ToString();
         }
 
         static int[] CtrlMap = new int[] {
@@ -885,9 +880,9 @@ namespace Sgml {
         /// <returns>true if the token is "CDATA", "SDATA" or "PI", otherwise false.</returns>
         public static bool IsLiteralType(string token)
         {
-            return string.Equals(token, "CDATA", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(token, "SDATA", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(token, "PI", StringComparison.OrdinalIgnoreCase);
+            return string.Equals(token.ToUpper(CultureInfo.InvariantCulture), "CDATA") ||
+                   string.Equals(token.ToUpper(CultureInfo.InvariantCulture), "SDATA") ||
+                   string.Equals(token.ToUpper(CultureInfo.InvariantCulture), "PI");
         }
 
         /// <summary>
@@ -939,7 +934,7 @@ namespace Sgml {
             {
                 if (m_stm != null)
                 {
-                    m_stm.Dispose();
+                    m_stm.Close();
                     m_stm = null;
                 }
             }
@@ -1135,7 +1130,7 @@ namespace Sgml {
         private string SniffAttribute(string name) {
             SniffWhitespace();
             string id = SniffName();
-            if (string.Equals(name, id, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(name.ToUpper(CultureInfo.InvariantCulture), id.ToUpper(CultureInfo.InvariantCulture))) {
                 SniffWhitespace();
                 if (SniffPattern("=")) {
                     SniffWhitespace();
@@ -1280,7 +1275,6 @@ namespace Sgml {
             return new string(m_buffer, start, pos - start);
         }
 
-        [SuppressMessage("Microsoft.Performance", "CA1811", Justification = "Kept for potential future usage.")]
         internal void SkipWhitespace()
         {
             char ch = (char)PeekChar();
@@ -1288,7 +1282,6 @@ namespace Sgml {
                 ch = m_buffer[++pos];
         }
 
-        [SuppressMessage("Microsoft.Performance", "CA1811", Justification = "Kept for potential future usage.")]
         internal void SkipTo(char what)
         {
             char ch = (char)PeekChar();
@@ -1296,7 +1289,6 @@ namespace Sgml {
                 ch = m_buffer[++pos];
         }
 
-        [SuppressMessage("Microsoft.Performance", "CA1811", Justification = "Kept for potential future usage.")]
         internal string ParseAttribute()
         {
             SkipTo('=');
@@ -1360,7 +1352,6 @@ namespace Sgml {
         }
 
         // Read up to end of line, or full buffer, whichever comes first.
-        [SuppressMessage("Microsoft.Performance", "CA1811", Justification = "Kept for potential future usage.")]
         public int ReadLine(char[] buffer, int start, int length)
         {
             int i = 0;
@@ -1506,7 +1497,7 @@ namespace Sgml {
         private ContentModel m_contentModel;
         private string[] m_inclusions;
         private string[] m_exclusions;
-        private Dictionary<string, AttDef> m_attList;
+        private Hashtable m_attList;
 
         /// <summary>
         /// Initialises a new element declaration instance.
@@ -1585,7 +1576,7 @@ namespace Sgml {
                 throw new InvalidOperationException("The attribute list for the element declaration has not been initialised.");
 
             AttDef a;
-            m_attList.TryGetValue(name.ToUpperInvariant(), out a);
+            a = (AttDef) m_attList[name.ToUpper(CultureInfo.InvariantCulture)];
             return a;
         }
 
@@ -1593,7 +1584,7 @@ namespace Sgml {
         /// Adds attribute definitions to the element declaration.
         /// </summary>
         /// <param name="list">The list of attribute definitions to add.</param>
-        public void AddAttDefs(Dictionary<string, AttDef> list)
+        public void AddAttDefs(Hashtable list)
         {
             if (list == null)
                 throw new ArgumentNullException("list");
@@ -1627,7 +1618,7 @@ namespace Sgml {
             {
                 foreach (string s in m_exclusions) 
                 {
-                    if (string.Equals(s, name, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(s.ToUpper(CultureInfo.InvariantCulture), name.ToUpper(CultureInfo.InvariantCulture)))
                         return false;
                 }
             }
@@ -1636,7 +1627,7 @@ namespace Sgml {
             {
                 foreach (string s in m_inclusions) 
                 {
-                    if (string.Equals(s, name, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(s.ToUpper(CultureInfo.InvariantCulture), name.ToUpper(CultureInfo.InvariantCulture)))
                         return true;
                 }
             }
@@ -1657,19 +1648,16 @@ namespace Sgml {
         /// <summary>
         /// Character data (CDATA), which contains only valid SGML characters.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         CDATA,
         
         /// <summary>
         /// Replaceable character data (RCDATA), which can contain text, character references and/or general entity references that resolve to character data.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         RCDATA,
         
         /// <summary>
         /// Empty element (EMPTY), i.e. having no contents, or contents that can be generated by the program.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         EMPTY
     }
 
@@ -1929,7 +1917,7 @@ namespace Sgml {
         /// <param name="sym">The symbol to add.</param>
         public void AddSymbol(string sym)
         {
-            if (string.Equals(sym, "#PCDATA", StringComparison.OrdinalIgnoreCase)) 
+            if (string.Equals(sym.ToUpper(CultureInfo.InvariantCulture), "#PCDATA")) 
             {               
                 Mixed = true;
             } 
@@ -2018,7 +2006,7 @@ namespace Sgml {
             {
                 if (obj is string) 
                 {
-                    if( string.Equals((string)obj, name, StringComparison.OrdinalIgnoreCase))
+                    if( string.Equals(((string)obj).ToUpper(CultureInfo.InvariantCulture), name.ToUpper(CultureInfo.InvariantCulture)))
                         return true;
                 } 
             }
@@ -2066,98 +2054,81 @@ namespace Sgml {
         /// <summary>
         /// The attribute contains text (with no markup).
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         CDATA,
         
         /// <summary>
         /// The attribute contains an entity declared in a DTD.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         ENTITY,
 
         /// <summary>
         /// The attribute contains a number of entities declared in a DTD.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         ENTITIES,
         
         /// <summary>
         /// The attribute is an id attribute uniquely identifie the element it appears on.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
-        [SuppressMessage("Microsoft.Naming", "CA1706", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         ID,
         
         /// <summary>
         /// The attribute value can be any declared subdocument or data entity name.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         IDREF,
         
         /// <summary>
         /// The attribute value is a list of (space separated) declared subdocument or data entity names.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         IDREFS,
         
         /// <summary>
         /// The attribute value is a SGML Name.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         NAME,
         
         /// <summary>
         /// The attribute value is a list of (space separated) SGML Names.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         NAMES,
         
         /// <summary>
         /// The attribute value is an XML name token (i.e. contains only name characters, but in this case with digits and other valid name characters accepted as the first character).
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         NMTOKEN,
 
         /// <summary>
         /// The attribute value is a list of (space separated) XML NMTokens.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         NMTOKENS,
 
         /// <summary>
         /// The attribute value is a number.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         NUMBER,
         
         /// <summary>
         /// The attribute value is a list of (space separated) numbers.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         NUMBERS,
         
         /// <summary>
         /// The attribute value is a number token (i.e. a name that starts with a number).
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         NUTOKEN,
         
         /// <summary>
         /// The attribute value is a list of number tokens.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         NUTOKENS,
         
         /// <summary>
         /// Attribute value is a member of the bracketed list of notation names that qualifies this reserved name.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         NOTATION,
         
         /// <summary>
         /// The attribute value is one of a set of allowed names.
         /// </summary>
-        [SuppressMessage("Microsoft.Naming", "CA1705", Justification = "This capitalisation is appropriate since the value it represents has all upper-case capitalisation.")]
         ENUMERATION
     }
 
@@ -2247,7 +2218,6 @@ namespace Sgml {
         /// <summary>
         /// Gets or sets the possible enumerated values for the attribute.
         /// </summary>
-        [SuppressMessage("Microsoft.Performance", "CA1819", Justification = "Changing this would break backwards compatibility with previous code using this library.")]
         public string[] EnumValues
         {
             get
@@ -2345,16 +2315,16 @@ namespace Sgml {
         public bool SetPresence(string token)
         {
             bool hasDefault = true;
-            if (string.Equals(token, "FIXED", StringComparison.OrdinalIgnoreCase)) 
+            if (string.Equals(token.ToUpper(CultureInfo.InvariantCulture), "FIXED")) 
             {
                 m_presence = AttributePresence.Fixed;             
             } 
-            else if (string.Equals(token, "REQUIRED", StringComparison.OrdinalIgnoreCase)) 
+            else if (string.Equals(token.ToUpper(CultureInfo.InvariantCulture), "REQUIRED")) 
             {
                 m_presence = AttributePresence.Required;
                 hasDefault = false;
             }
-            else if (string.Equals(token, "IMPLIED", StringComparison.OrdinalIgnoreCase)) 
+            else if (string.Equals(token.ToUpper(CultureInfo.InvariantCulture), "IMPLIED")) 
             {
                 m_presence = AttributePresence.Implied;
                 hasDefault = false;
@@ -2404,9 +2374,9 @@ namespace Sgml {
     {
         private string m_name;
 
-        private Dictionary<string, ElementDecl> m_elements;
-        private Dictionary<string, Entity> m_pentities;
-        private Dictionary<string, Entity> m_entities;
+        private Hashtable m_elements;
+        private Hashtable m_pentities;
+        private Hashtable m_entities;
         private StringBuilder m_sb;
         private Entity m_current;
 
@@ -2418,9 +2388,9 @@ namespace Sgml {
         public SgmlDtd(string name, XmlNameTable nt)
         {
             this.m_name = name;
-            this.m_elements = new Dictionary<string,ElementDecl>();
-            this.m_pentities = new Dictionary<string, Entity>();
-            this.m_entities = new Dictionary<string, Entity>();
+            this.m_elements = new Hashtable();
+            this.m_pentities = new Hashtable();
+            this.m_entities = new Hashtable();
             this.m_sb = new StringBuilder();
         }
 
@@ -2461,12 +2431,12 @@ namespace Sgml {
         public static SgmlDtd Parse(Uri baseUri, string name, string pubid, string url, string subset, string proxy, XmlNameTable nt)
         {
             SgmlDtd dtd = new SgmlDtd(name, nt);
-            if (!string.IsNullOrEmpty(url))
+            if (!(url == null || url == String.Empty))
             {
                 dtd.PushEntity(baseUri, new Entity(dtd.Name, pubid, url, proxy));
             }
 
-            if (!string.IsNullOrEmpty(subset))
+            if (!(subset == null || subset == String.Empty))
             {
                 dtd.PushEntity(baseUri, new Entity(name, subset));
             }
@@ -2493,12 +2463,11 @@ namespace Sgml {
         /// <param name="proxy">The proxy server to use when loading resources.</param>
         /// <param name="nt">The <see cref="XmlNameTable"/> is NOT used.</param>
         /// <returns>A new <see cref="SgmlDtd"/> instance that encapsulates the DTD.</returns>
-        [SuppressMessage("Microsoft.Reliability", "CA2000", Justification = "The entities created here are not temporary and should not be disposed here.")]
         public static SgmlDtd Parse(Uri baseUri, string name, TextReader input, string subset, string proxy, XmlNameTable nt)
         {
             SgmlDtd dtd = new SgmlDtd(name, nt);
             dtd.PushEntity(baseUri, new Entity(dtd.Name, baseUri, input, proxy));
-            if (!string.IsNullOrEmpty(subset))
+            if (!(subset == null || subset == String.Empty))
             {
                 dtd.PushEntity(baseUri, new Entity(name, subset));
             }
@@ -2523,7 +2492,7 @@ namespace Sgml {
         public Entity FindEntity(string name)
         {
             Entity e;
-            this.m_entities.TryGetValue(name, out e);
+            e = (Entity) this.m_entities[name];
             return e;
         }
 
@@ -2535,7 +2504,7 @@ namespace Sgml {
         public ElementDecl FindElement(string name)
         {
             ElementDecl el;
-            m_elements.TryGetValue(name.ToUpperInvariant(), out el);
+            el = (ElementDecl) m_elements[name.ToUpper(CultureInfo.InvariantCulture)];
             return el;
         }
 
@@ -2669,11 +2638,11 @@ namespace Sgml {
             // <![^ name [ ... ]]>
             this.m_current.ReadChar(); // move to next char.
             string name = ScanName("[");
-            if (string.Equals(name, "INCLUDE", StringComparison.OrdinalIgnoreCase)) 
+            if (string.Equals(name.ToUpper(CultureInfo.InvariantCulture), "INCLUDE")) 
             {
                 ParseIncludeSection();
             } 
-            else if (string.Equals(name, "IGNORE", StringComparison.OrdinalIgnoreCase)) 
+            else if (string.Equals(name.ToUpper(CultureInfo.InvariantCulture), "IGNORE")) 
             {
                 ParseIgnoreSection();
             }
@@ -2683,8 +2652,6 @@ namespace Sgml {
             }
         }
 
-        [SuppressMessage("Microsoft.Performance", "CA1822", Justification = "This is not yet implemented and will use 'this' in the future.")]
-        [SuppressMessage("Microsoft.Globalization", "CA1303", Justification = "The use of a literal here is only due to this not yet being implemented.")]
         private void ParseIncludeSection()
         {
             throw new NotImplementedException("Include Section");
@@ -2732,7 +2699,7 @@ namespace Sgml {
         private Entity GetParameterEntity(string name)
         {
             Entity e = null;
-            m_pentities.TryGetValue(name, out e);
+            e = (Entity) m_pentities[name];
             if (e == null)
                 this.m_current.Error("Reference to undefined parameter entity '{0}'", name);
 
@@ -2743,10 +2710,9 @@ namespace Sgml {
         /// Returns a dictionary for looking up entities by their <see cref="Entity.Literal"/> value.
         /// </summary>
         /// <returns>A dictionary for looking up entities by their <see cref="Entity.Literal"/> value.</returns>
-        [SuppressMessage("Microsoft.Design", "CA1024", Justification = "This method creates and copies a dictionary, so exposing it as a property is not appropriate.")]
-        public Dictionary<string, Entity> GetEntitiesLiteralNameLookup()
+        public Hashtable GetEntitiesLiteralNameLookup()
         {
-            Dictionary<string, Entity> hashtable = new Dictionary<string, Entity>();
+            Hashtable hashtable = new Hashtable();
             foreach (Entity entity in this.m_entities.Values)
                 hashtable[entity.Literal] = entity;
 
@@ -2788,7 +2754,7 @@ namespace Sgml {
                 else 
                 {
                     extid = tok;
-                    if (string.Equals(extid, "PUBLIC", StringComparison.OrdinalIgnoreCase)) 
+                    if (string.Equals(extid.ToUpper(CultureInfo.InvariantCulture), "PUBLIC")) 
                     {
                         ch = this.m_current.SkipWhitespace();
                         if (ch == '"' || ch == '\'') 
@@ -2800,7 +2766,7 @@ namespace Sgml {
                             this.m_current.Error("Expecting public identifier literal but found '{0}'",ch);
                         }
                     } 
-                    else if (!string.Equals(extid, "SYSTEM", StringComparison.OrdinalIgnoreCase)) 
+                    else if (!string.Equals(extid.ToUpper(CultureInfo.InvariantCulture), "SYSTEM")) 
                     {
                         this.m_current.Error("Invalid external identifier '{0}'.  Expecing 'PUBLIC' or 'SYSTEM'.", extid);
                     }
@@ -2834,13 +2800,13 @@ namespace Sgml {
         {
             char ch = this.m_current.SkipWhitespace();
             string[] names = ParseNameGroup(ch, true);
-            ch = char.ToUpperInvariant(this.m_current.SkipWhitespace());
+            ch = char.ToUpper(this.m_current.SkipWhitespace(), CultureInfo.InvariantCulture);
             bool sto = false;
             bool eto = false;
             if (ch == 'O' || ch == '-') {
                 sto = (ch == 'O'); // start tag optional?   
                 this.m_current.ReadChar();
-                ch = char.ToUpperInvariant(this.m_current.SkipWhitespace());
+                ch = char.ToUpper(this.m_current.SkipWhitespace(), CultureInfo.InvariantCulture);
                 if (ch == 'O' || ch == '-'){
                     eto = (ch == 'O'); // end tag optional? 
                     ch = this.m_current.ReadChar();
@@ -2896,7 +2862,7 @@ namespace Sgml {
 
             foreach (string name in names) 
             {
-                string atom = name.ToUpperInvariant();
+                string atom = name.ToUpper(CultureInfo.InvariantCulture);
                 this.m_elements.Add(atom, new ElementDecl(atom, sto, eto, cm, inclusions, exclusions));
             }
         }
@@ -2925,7 +2891,7 @@ namespace Sgml {
                     else 
                     {
                         string token = this.m_current.ScanToken(this.m_sb, SgmlDtd.ngterm, nmtokens);
-                        token = token.ToUpperInvariant();
+                        token = token.ToUpper(CultureInfo.InvariantCulture);
                         names.Add(token);
                     }
                     ch = this.m_current.SkipWhitespace();
@@ -2936,7 +2902,7 @@ namespace Sgml {
             else 
             {
                 string name = this.m_current.ScanToken(this.m_sb, SgmlDtd.WhiteSpace, nmtokens);
-                name = name.ToUpperInvariant();
+                name = name.ToUpper(CultureInfo.InvariantCulture);
                 names.Add(name);
             }
             return (string[])names.ToArray(typeof(string));
@@ -2960,7 +2926,7 @@ namespace Sgml {
                 else 
                 {
                     name = this.m_current.ScanToken(this.m_sb, SgmlDtd.ngterm, true);
-                    name = name.ToUpperInvariant();
+                    name = name.ToUpper(CultureInfo.InvariantCulture);
                     names.Add(name);
                 }
                 ch = this.m_current.SkipWhitespace();
@@ -3062,7 +3028,7 @@ namespace Sgml {
                         token = this.m_current.ScanToken(this.m_sb, SgmlDtd.cmterm, true);
                     }
 
-                    token = token.ToUpperInvariant();
+                    token = token.ToUpper(CultureInfo.InvariantCulture);
                     ch = this.m_current.Lastchar;
                     if (ch == '?' || ch == '+' || ch == '*') 
                     {
@@ -3086,12 +3052,12 @@ namespace Sgml {
         {
             char ch = this.m_current.SkipWhitespace();
             string[] names = ParseNameGroup(ch, true);          
-            Dictionary<string, AttDef> attlist = new Dictionary<string, AttDef>();
+            Hashtable attlist = new Hashtable();
             ParseAttList(attlist, '>');
             foreach (string name in names)
             {
-                ElementDecl e;
-                if (!m_elements.TryGetValue(name, out e)) 
+                ElementDecl e = (ElementDecl) m_elements[name];
+                if (e == null) 
                 {
                     this.m_current.Error("ATTLIST references undefined ELEMENT {0}", name);
                 }
@@ -3101,7 +3067,7 @@ namespace Sgml {
         }
 
         static string peterm = " \t\r\n>";
-        void ParseAttList(Dictionary<string, AttDef> list, char term)
+        void ParseAttList(Hashtable list, char term)
         {
             char ch = this.m_current.SkipWhitespace();
             while (ch != term) 
@@ -3131,7 +3097,7 @@ namespace Sgml {
         {
             ch = this.m_current.SkipWhitespace();
             string name = ScanName(SgmlDtd.WhiteSpace);
-            name = name.ToUpperInvariant();
+            name = name.ToUpper(CultureInfo.InvariantCulture);
             AttDef attdef = new AttDef(name);
 
             ch = this.m_current.SkipWhitespace();
@@ -3175,7 +3141,7 @@ namespace Sgml {
             else 
             {
                 string token = ScanName(SgmlDtd.WhiteSpace);
-                if (string.Equals(token, "NOTATION", StringComparison.OrdinalIgnoreCase)) 
+                if (string.Equals(token.ToUpper(CultureInfo.InvariantCulture), "NOTATION")) 
                 {
                     ch = this.m_current.SkipWhitespace();
                     if (ch != '(') 
@@ -3224,7 +3190,7 @@ namespace Sgml {
                 else
                 {
                     string name = this.m_current.ScanToken(this.m_sb, SgmlDtd.WhiteSpace, false);
-                    name = name.ToUpperInvariant();
+                    name = name.ToUpper(CultureInfo.InvariantCulture);
                     attdef.Default = name; // bugbug - must be one of the enumerated names.
                     ch = this.m_current.SkipWhitespace();
                 }
@@ -3232,10 +3198,10 @@ namespace Sgml {
         }
     }
 
-    internal static class StringUtilities
+    internal class StringUtilities
     {
         public static bool EqualsIgnoreCase(string a, string b){
-            return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(a.ToUpper(CultureInfo.InvariantCulture), b.ToUpper(CultureInfo.InvariantCulture));
         }
     }
 }
